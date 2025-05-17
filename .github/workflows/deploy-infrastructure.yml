@@ -199,5 +199,12 @@ jobs:
       - name: Describe stack events on failure
         if: failure()
         run: |
-          echo "Deployment failed. Getting details..."
-          aws cloudformation describe-stack-events --stack-name infrastructure-stack
+          - name: Describe stack events on failure
+            if: failure()
+            run: |
+              echo "Deployment failed. Getting details..."
+              if aws cloudformation describe-stacks --stack-name infrastructure-stack 2>/dev/null; then
+                aws cloudformation describe-stack-events --stack-name infrastructure-stack
+              else
+                echo "Stack infrastructure-stack does not exist. Skipping event description."
+              fi
