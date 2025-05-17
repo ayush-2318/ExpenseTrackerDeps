@@ -1,152 +1,3 @@
-#name: Deploy Infrastructure
-#
-#on:
-#  push:
-#    branches:
-#      - main
-#
-#env:
-#  AWS_REGION: ap-south-1
-#
-#jobs:
-#  deploy-infrastructure:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Checkout code
-#        uses: actions/checkout@v4
-#
-#      - name: Configure AWS credentials
-#        uses: aws-actions/configure-aws-credentials@v2
-#        with:
-#          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#          aws-region: ${{ env.AWS_REGION }}
-#
-#      - name: Deploy Infrastructure Stack
-#        run: |
-#          aws cloudformation deploy \
-#            --template-file cloudformation-template--initial-infra.yaml \
-#            --stack-name infrastructure-stack \
-#            --capabilities CAPABILITY_NAMED_IAM
-#
-#      - name: Describe stack events if deploy fails
-#        if: failure()
-#        run: |
-#          echo "Describing CloudFormation stack events..."
-#          aws cloudformation describe-stack-events \
-#            --stack-name infrastructure-stack \
-#            --max-items 15 \
-#            --output table
-#
-#
-#      - name: Output Infrastructure Stack Info
-#        run: |
-#          aws cloudformation describe-stacks \
-#            --stack-name infrastructure-stack \
-#            --query "Stacks[0].Outputs" \
-#            > infrastructure-outputs.json
-#          cat infrastructure-outputs.json
-#
-#      - name: Upload infrastructure output to s3
-#        env:
-#          BUCKET_NAME: "expensetrackerinfra"
-#          INFRA_FILE_NAME: "infrastructure-outputs.json"
-#        run: |
-#          # Check if bucket exists
-#          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-#            echo "Bucket does not exist. Creating..."
-#            aws s3 mb s3://$BUCKET_NAME --region $AWS_REGION
-#          else
-#            echo "Bucket $BUCKET_NAME already exists"
-#          fi
-#          echo "Uploading infrastructure output to bucket: $BUCKET_NAME"
-#          aws s3 cp $INFRA_FILE_NAME s3://$BUCKET_NAME/infrastructure-outputs.json
-#
-#
-#
-##name: Deploy Infrastructure
-##
-##on:
-##  push:
-##    branches:
-##      - main
-##
-##env:
-##  AWS_REGION: ap-south-1
-##
-##jobs:
-##  deploy-infrastructure:
-##    runs-on: ubuntu-latest
-##    steps:
-##      - name: Checkout code
-##        uses: actions/checkout@v4
-##
-##      - name: Configure AWS credentials
-##        uses: aws-actions/configure-aws-credentials@v2
-##        with:
-##          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-##          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-##          aws-region: ${{ env.AWS_REGION }}
-##
-##      - name: Delete stack if in ROLLBACK_COMPLETE
-##        run: |
-##          STACK_STATUS=$(aws cloudformation describe-stacks \
-##            --stack-name infrastructure-stack \
-##            --query "Stacks[0].StackStatus" \
-##            --output text 2>/dev/null || echo "NOT_FOUND")
-##
-##          if [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ]; then
-##            echo "Stack is in ROLLBACK_COMPLETE. Deleting..."
-##            aws cloudformation delete-stack --stack-name infrastructure-stack
-##            echo "Waiting for stack to be deleted..."
-##            aws cloudformation wait stack-delete-complete --stack-name infrastructure-stack
-##          else
-##            echo "Stack status is $STACK_STATUS. Proceeding with deployment."
-##          fi
-##
-##      - name: Deploy Infrastructure Stack
-##        run: |
-##          aws cloudformation deploy \
-##            --template-file cloudformation-template--initial-infra.yaml \
-##            --stack-name infrastructure-stack \
-##            --capabilities CAPABILITY_NAMED_IAM
-##
-##      - name: Describe stack events if deploy fails
-##        if: failure()
-##        run: |
-##          echo "Describing CloudFormation stack events..."
-##          aws cloudformation describe-stack-events \
-##            --stack-name infrastructure-stack \
-##            --max-items 15 \
-##            --output table
-##
-##      - name: Output Infrastructure Stack Info
-##        run: |
-##          aws cloudformation describe-stacks \
-##            --stack-name infrastructure-stack \
-##            --query "Stacks[0].Outputs" \
-##            > infrastructure-outputs.json
-##          cat infrastructure-outputs.json
-##
-##      - name: Upload infrastructure output to s3
-##        env:
-##          BUCKET_NAME: "expensetrackerinfra"
-##          INFRA_FILE_NAME: "infrastructure-outputs.json"
-##        run: |
-##          # Check if bucket exists
-##          if ! aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-##            echo "Bucket does not exist. Creating..."
-##            aws s3 mb s3://$BUCKET_NAME --region $AWS_REGION
-##          else
-##            echo "Bucket $BUCKET_NAME already exists"
-##          fi
-##          echo "Uploading infrastructure output to bucket: $BUCKET_NAME"
-##          aws s3 cp $INFRA_FILE_NAME s3://$BUCKET_NAME/infrastructure-outputs.json
-
-
-
-
-
 name: Deploy AWS Infrastructure
 
 on:
@@ -174,11 +25,13 @@ jobs:
           set +e
           STACK_STATUS=$(aws cloudformation describe-stacks --stack-name infrastructure-stack --query "Stacks[0].StackStatus" --output text 2>/dev/null)
           set -e
-          
+
           if [ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]; then
             echo "Stack is in ROLLBACK_COMPLETE state. Deleting..."
             aws cloudformation delete-stack --stack-name infrastructure-stack
             aws cloudformation wait stack-delete-complete --stack-name infrastructure-stack
+          else
+            echo "Stack status is $STACK_STATUS. Proceeding with deployment."
           fi
 
       - name: Deploy CloudFormation stack
@@ -194,17 +47,17 @@ jobs:
         if: success()
         run: |
           echo "Stack deployed successfully! Fetching outputs..."
-          aws cloudformation describe-stacks --stack-name infrastructure-stack --query "Stacks[0].Outputs" --output table
+          aws cloudformation describe-stacks \
+            --stack-name infrastructure-stack \
+            --query "Stacks[0].Outputs" \
+            --output table
 
       - name: Describe stack events on failure
         if: failure()
         run: |
-          - name: Describe stack events on failure
-            if: failure()
-            run: |
-              echo "Deployment failed. Getting details..."
-              if aws cloudformation describe-stacks --stack-name infrastructure-stack 2>/dev/null; then
-                aws cloudformation describe-stack-events --stack-name infrastructure-stack
-              else
-                echo "Stack infrastructure-stack does not exist. Skipping event description."
-              fi
+          echo "Deployment failed. Getting details..."
+          if aws cloudformation describe-stacks --stack-name infrastructure-stack 2>/dev/null; then
+            aws cloudformation describe-stack-events --stack-name infrastructure-stack
+          else
+            echo "Stack infrastructure-stack does not exist. Skipping event description."
+          fi
