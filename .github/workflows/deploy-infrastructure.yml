@@ -29,14 +29,15 @@ jobs:
             --stack-name infrastructure-stack \
             --capabilities CAPABILITY_NAMED_IAM
 
-      - name: Describe stack events if deploy fails
-        if: failure()
-        run: |
-          echo "Describing CloudFormation stack events..."
-          aws cloudformation describe-stack-events \
-            --stack-name infrastructure-stack \
-            --max-items 15 \
-            --output table
+#      - name: Describe stack events if deploy fails
+#        if: failure()
+#        run: |
+#          echo "Describing CloudFormation stack events..."
+#          aws cloudformation describe-stack-events \
+#            --stack-name infrastructure-stack \
+#            --max-items 15 \
+#            --output table
+
 
       - name: Output Infrastructure Stack Info
         run: |
